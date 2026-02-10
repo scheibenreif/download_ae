@@ -1,0 +1,4 @@
+.ipynb_checkpoints/
+spatial_index.csv
+ae_embeddings/
+__pycache__/
