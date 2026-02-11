@@ -9,7 +9,8 @@ from ae_downloader import Downloader
 
 
 year = 2022  # Use embeddings from this year.
-tile_size = 5  # Height and width of the downloaded data (10m GSD).
+tile_size = 120  # Height and width of the downloaded data (10m GSD).
+skip_if_present = True  # Skip a location if the corresponding file is already downloaded.
 
 # Load the locations of air pollution monitoring stations.
 station_data = pd.read_csv("../global_air_pollution_datalake/station_data.csv")
@@ -22,12 +23,12 @@ station_data = pd.read_csv("../global_air_pollution_datalake/station_data.csv")
 #             }
 
 if __name__ == "__main__":
-    downloader = Downloader(output_path="./ae_embeddings/air_pollution/", tile_size=tile_size)
+    downloader = Downloader(output_path="./ae_embeddings/air_pollution/", tile_size=tile_size, skip_if_present=skip_if_present)
 
     # for location_id, (lat, lon) in tqdm.tqdm(locations.items()):
     for idx, (location_id, lat, lon) in tqdm.tqdm(station_data.iterrows(), total=station_data.shape[0]):
-        try:
-            downloader.download(lat, lon, year, location_id)
-        except Exception as e:
-            print(e)
-            continue
+        # try:
+        downloader.download(lat, lon, year, location_id)
+        # except Exception as e:
+        #     print(e)
+        #     continue

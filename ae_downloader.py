@@ -12,10 +12,11 @@ logging.basicConfig(level=logging.ERROR)
 logger = logging.getLogger(__name__)
 
 class Downloader:
-    def __init__(self, output_path="./ae_embeddings", tile_size=120, dequantize=False):
+    def __init__(self, output_path="./ae_embeddings", tile_size=120, dequantize=False, skip_if_present=False):
         self.output_path = output_path
         self.tile_size = tile_size
         self.dequantize = dequantize
+        self.skip_if_present = skip_if_present
         
         self.bucket = "s3://us-west-2.opendata.source.coop/tge-labs/aef/v1/annual/"
 
@@ -34,6 +35,13 @@ class Downloader:
         Saves the result to the output directory.
         """
         logger.info(f"Processing {location_id}.")
+
+        if self.skip_if_present:
+            potential_file1, potential_file2 = self._generate_output_path(year, location_id)
+            if os.path.isfile(potential_file1) or os.path.isfile(potential_file2):
+                logger.info("File is already present on disk, skipping download.")
+                return
+
         utm_data = self._get_utm_zone(lat, lon)
         gee_asset_id = self._get_asset_id(lat, lon, year)
 
@@ -46,6 +54,10 @@ class Downloader:
                 target_file = file
                 logger.info(f"Found target file {file}.")
                 break
+
+        if target_file is None:
+            logger.error(f"No file found for {location_id} in {year} at {lat}, {lon}.")
+            return
 
         logger.info("Reading file...")
         data, profile, centered = self._read_file(utm_data["easting"], utm_data["northing"], target_file)
@@ -133,11 +145,17 @@ class Downloader:
         }
         vrt_path = filepath.replace('.tiff', '.vrt')
                 
-        with rasterio.env.Env(**env_options):
-            with rasterio.open(vrt_path) as src:
-                # Check if point is in this file's bounds
-                return (src.bounds.left <= utm_x <= src.bounds.right and
-                    src.bounds.bottom <= utm_y <= src.bounds.top)
+        try:
+            with rasterio.env.Env(**env_options):
+                with rasterio.open(vrt_path) as src:
+                    # Check if point is in this file's bounds
+                    return (src.bounds.left <= utm_x <= src.bounds.right and
+                        src.bounds.bottom <= utm_y <= src.bounds.top)
+        except Exception as e:
+            print(f"{vrt_path=}")
+            print(e)
+
+        return False
 
 
     def _read_file(self, utm_x, utm_y, filename):
@@ -202,9 +220,17 @@ class Downloader:
         
         return result
 
+    
+    def _generate_output_path(self, year, location_id):
+        output_dir = os.path.join(self.output_path, str(year), str(self.tile_size))
+        output_file_v1 = output_dir + "/" + location_id + "_centered_True" + ".tiff"
+        output_file_v2 = output_dir + "/" + location_id + "_centered_False" + ".tiff"
+
+        return output_file_v1, output_file_v2
+
 
     def _save_tile(self, data, profile, year, location_id, msg=""):
-        output_dir = os.path.join(self.output_path, str(year))
+        output_dir = os.path.join(self.output_path, str(year), str(self.tile_size))
         if not os.path.exists(output_dir):
             os.makedirs(output_dir)
 
